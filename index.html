@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Workout">
+<meta name="theme-color" content="#111214">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Workout Timer</title>
+<style>
+:root{--bg:#111214;--card:#1c1e22;--line:#2c2f35;--fg:#eceef1;--mute:#8b9099;--acc:#3ddc84;--rest:#4aa3ff;--prep:#ffb020;--reps:#b388ff;--bad:#ff5c5c}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.35 -apple-system,system-ui,sans-serif;height:100%}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);-webkit-user-select:none;user-select:none}
+.view{display:none;max-width:820px;margin:0 auto;padding:16px 18px 40px}
+.view.on{display:block}
+header{display:flex;align-items:center;gap:12px;margin:8px 0 18px}
+header h1{flex:1;font-size:28px;margin:0}
+button{font:inherit;color:inherit;border:0;border-radius:12px;padding:12px 18px;background:var(--line);cursor:pointer;min-height:48px}
+button:active{filter:brightness(1.3)}
+.primary{background:var(--acc);color:#06210f;font-weight:600}
+.ghost{background:transparent;border:1px solid var(--line)}
+.danger{background:transparent;border:1px solid var(--bad);color:var(--bad)}
+.wide{width:100%;margin-top:12px}
+.icon{min-width:48px;padding:8px}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px}
+.muted{color:var(--mute);font-size:15px}
+.wk{display:flex;align-items:center;gap:10px}
+.wkinfo{flex:1;min-width:0}
+.wkname{font-size:21px;font-weight:600}
+.go{min-width:100px}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:20px}
+.toggle{display:flex;align-items:center;gap:8px;padding:0 8px}
+.toggle input{width:24px;height:24px}
+label{display:block;font-size:14px;color:var(--mute)}
+input,select,textarea{display:block;width:100%;margin-top:4px;font:inherit;font-size:19px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;-webkit-user-select:text;user-select:text}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.steptop{display:flex;gap:8px;align-items:center}
+.steptop input{margin:0;flex:1;font-weight:600}
+/* runner */
+#run{max-width:none;height:100vh;height:100dvh;padding:12px 24px;display:none;flex-direction:column}
+#run.on{display:flex}
+.runtop{display:flex;justify-content:space-between;align-items:center;font-size:20px;color:var(--mute)}
+#rLabel{text-align:center;font-size:clamp(32px,6vw,64px);font-weight:700;margin-top:2vh}
+#rMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;font-weight:700;font-size:clamp(120px,28vw,320px);line-height:1;border-radius:28px;margin:10px 0}
+#run[data-count] #rMain{background:rgba(179,136,255,.10);cursor:pointer}
+.cnt{font-size:.38em;color:var(--reps);margin-top:.15em}
+textarea{min-height:180px;font-size:16px}
+.hint{font-size:14px;color:var(--mute);margin:8px 0 0}
+#rSub{text-align:center;font-size:clamp(20px,3.4vw,32px);color:var(--mute);min-height:1.4em}
+#rSub button{min-height:40px;padding:6px 16px;margin-left:12px;font-size:18px}
+.bar{height:8px;background:var(--line);border-radius:4px;margin:14px 0;overflow:hidden}
+#rBar{height:100%;width:0;background:var(--fg);transition:width .2s linear}
+.controls{display:grid;grid-template-columns:1fr 2fr 1fr;gap:14px;padding-bottom:10px}
+.controls button{min-height:84px;font-size:28px;border-radius:20px}
+#run[data-kind=work] #rLabel,#run[data-kind=work] #rMain{color:var(--acc)}
+#run[data-kind=rest] #rLabel,#run[data-kind=rest] #rMain{color:var(--rest)}
+#run[data-kind=prep] #rLabel,#run[data-kind=prep] #rMain{color:var(--prep)}
+#run[data-kind=reps] #rLabel,#run[data-kind=reps] #rMain{color:var(--reps)}
+#run[data-kind=done] #rLabel{color:var(--acc)}
+#run.paused #rMain{opacity:.35}
+</style>
+</head>
+<body>
+<section id="list" class="view on"></section>
+<section id="edit" class="view"></section>
+<section id="paste" class="view"></section>
+<section id="run">
+  <div class="runtop"><button class="ghost" id="rQuit">✕ End</button><div id="rRound"></div><div id="rTotal"></div></div>
+  <div id="rLabel"></div>
+  <div id="rMain"></div>
+  <div id="rSub"></div>
+  <div class="bar"><div id="rBar"></div></div>
+  <div class="controls"><button id="rPrev">⏮</button><button id="rPause" class="primary">Pause</button><button id="rNext">⏭</button></div>
+</section>
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const KEY = 'wt.workouts.v2', OPT = 'wt.opts.v1';
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = (v, min = 0) => Math.max(min, parseInt(v, 10) || 0);
+const store = {
+  get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+
+/* A step has optional time (secs) and optional rep target (reps); at least one is > 0. */
+function cleanWorkout(w) {
+  const steps = (Array.isArray(w.steps) ? w.steps : []).map(s => {
+    s = s || {};
+    let secs = num(s.secs ?? s.seconds), reps = num(s.reps);
+    if (s.type === 'reps' && !s.cap) secs = 0;          // older format
+    if (s.cap) secs = num(s.cap);
+    if (!secs && !reps) secs = 30;
+    return { name: String(s.name || 'Exercise').slice(0, 60), secs, reps, rest: num(s.rest) };
+  });
+  return { id: uid(), name: String(w.name || 'Workout').slice(0, 80), rounds: num(w.rounds, 1),
+           prep: w.prep == null ? 10 : num(w.prep), roundRest: num(w.roundRest), steps };
+}
+function defaults() {
+  return [
+    cleanWorkout({ name: '15-min full body', rounds: 3, prep: 10, roundRest: 60, steps: [
+      { name: 'Jumping jacks', secs: 40, rest: 15 }, { name: 'Squats', secs: 40, rest: 15 },
+      { name: 'Push-ups', secs: 45, reps: 12, rest: 15 }, { name: 'Lunges', secs: 40, rest: 15 },
+      { name: 'Plank', secs: 30, rest: 0 } ] }),
+    cleanWorkout({ name: 'Tabata', rounds: 8, prep: 10, roundRest: 0, steps: [{ name: 'Work', secs: 20, rest: 10 }] })
+  ];
+}
+let workouts = store.get(KEY, null);
+if (!Array.isArray(workouts) || !workouts.length) workouts = defaults();
+const save = () => store.set(KEY, workouts);
+const opts = Object.assign({ voice: true, beep: true }, store.get(OPT, {}));
+
+const fmt = s => { s = Math.max(0, Math.round(s)); const m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); };
+const fmtDur = s => s >= 3600 ? Math.floor(s/3600) + 'h ' + Math.round(s%3600/60) + 'm' : s >= 60 ? (Math.round(s/6)/10) + ' min' : s + 's';
+function buildPhases(w) {
+  const p = [];
+  if (w.prep > 0) p.push({ kind: 'prep', label: 'Get ready', secs: w.prep, reps: 0, round: 1 });
+  for (let r = 1; r <= w.rounds; r++) {
+    w.steps.forEach((s, i) => {
+      p.push({ kind: s.secs > 0 ? 'work' : 'reps', label: s.name || 'Exercise', secs: s.secs, reps: s.reps, round: r });
+      const lastStep = i === w.steps.length - 1, lastRound = r === w.rounds;
+      let rest = s.rest;
+      if (lastStep) rest = lastRound ? 0 : (w.roundRest > 0 ? w.roundRest : s.rest);
+      if (rest > 0) p.push({ kind: 'rest', label: lastStep ? 'Round rest' : 'Rest', secs: rest, reps: 0, round: r });
+    });
+  }
+  return p;
+}
+const estimate = w => buildPhases(w).reduce((t, p) => t + (p.secs || p.reps * 3), 0);
+const stepDesc = s => [s.secs ? s.secs + 's' : '', s.reps ? s.reps + ' reps' : ''].filter(Boolean).join(', ');
+
+/* ---------- views ---------- */
+function show(id) { document.querySelectorAll('.view,#run').forEach(v => v.classList.toggle('on', v.id === id)); window.scrollTo(0, 0); }
+
+function renderList() {
+  $('#list').innerHTML = `
+  <header><h1>Workouts</h1><button class="primary" data-act="new">+ New</button></header>
+  <button class="wide primary" data-act="paste" style="margin:0 0 16px">✦ Get a workout from Claude</button>
+  ${workouts.map(w => `
+    <div class="card wk">
+      <div class="wkinfo"><div class="wkname">${esc(w.name)}</div>
+        <div class="muted">${w.steps.length} exercise${w.steps.length === 1 ? '' : 's'} · ${w.rounds} round${w.rounds === 1 ? '' : 's'} · ≈${fmtDur(estimate(w))}</div></div>
+      <button class="ghost" data-act="edit" data-id="${w.id}">Edit</button>
+      <button class="primary go" data-act="run" data-id="${w.id}">Start</button>
+    </div>`).join('') || '<p class="muted">No workouts yet.</p>'}
+  <div class="tools">
+    <label class="toggle"><input type="checkbox" data-opt="voice" ${opts.voice ? 'checked' : ''}> Voice</label>
+    <label class="toggle"><input type="checkbox" data-opt="beep" ${opts.beep ? 'checked' : ''}> Beeps</label>
+    <span style="flex:1"></span>
+    <button class="ghost" data-act="export">Export</button>
+    <button class="ghost" data-act="import">Import</button>
+  </div>
+  <p class="muted">Workouts are saved on this iPad. Export saves a backup .json to Files.</p>`;
+}
+$('#list').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const w = workouts.find(x => x.id === b.dataset.id);
+  switch (b.dataset.act) {
+    case 'new': openEdit({ id: uid(), name: 'New workout', rounds: 3, prep: 10, roundRest: 60, steps: [{ name: '', secs: 30, reps: 0, rest: 15 }], _new: true }); break;
+    case 'edit': openEdit(JSON.parse(JSON.stringify(w))); break;
+    case 'run': startRun(w); break;
+    case 'paste': renderPaste(); show('paste'); break;
+    case 'export': download('workouts-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ workouts }, null, 2), 'application/json'); break;
+    case 'import': $('#importFile').click(); break;
+  }
+});
+$('#list').addEventListener('change', e => {
+  const k = e.target.dataset.opt; if (!k) return;
+  opts[k] = e.target.checked; store.set(OPT, opts);
+});
+
+/* ---------- editor ---------- */
+let draft = null;
+function openEdit(d) { draft = d; renderEdit(); show('edit'); }
+function stepHTML(s, i) {
+  return `<div class="card step" data-i="${i}">
+    <div class="steptop"><input data-s="name" value="${esc(s.name)}" placeholder="Exercise name">
+      <button class="icon" data-act="up">▲</button><button class="icon" data-act="down">▼</button><button class="icon" data-act="rm">✕</button></div>
+    <div class="row3">
+      <label>Time (sec)<input type="number" inputmode="numeric" min="0" data-s="secs" value="${s.secs}"></label>
+      <label>Reps to count<input type="number" inputmode="numeric" min="0" data-s="reps" value="${s.reps}"></label>
+      <label>Rest after (sec)<input type="number" inputmode="numeric" min="0" data-s="rest" value="${s.rest}"></label>
+    </div></div>`;
+}
+function renderEdit() {
+  const d = draft;
+  $('#edit').innerHTML = `
+  <header><button class="ghost" data-act="cancel">Cancel</button><h1>${d._new ? 'New' : 'Edit'} workout</h1><button class="primary" data-act="save">Save</button></header>
+  <div class="card">
+    <label>Name<input data-f="name" value="${esc(d.name)}"></label>
+    <div class="row3">
+      <label>Rounds<input type="number" inputmode="numeric" min="1" data-f="rounds" value="${d.rounds}"></label>
+      <label>Get-ready (sec)<input type="number" inputmode="numeric" min="0" data-f="prep" value="${d.prep}"></label>
+      <label>Rest between rounds<input type="number" inputmode="numeric" min="0" data-f="roundRest" value="${d.roundRest}"></label>
+    </div>
+    <p class="hint">Time 0 = no timer (tap Done when finished). Reps 0 = no counter. You can use both.<br>Rest between rounds replaces the last exercise's rest; 0 = use the exercise's own rest.</p>
+  </div>
+  ${d.steps.map(stepHTML).join('')}
+  <button class="wide" data-act="add">+ Add exercise</button>
+  ${d._new ? '' : '<button class="wide danger" data-act="del">Delete workout</button>'}
+  <p class="muted">Estimated length: <span id="est">${fmtDur(estimate(d))}</span> (untimed reps counted at ~3 sec each)</p>`;
+}
+$('#edit').addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.f) draft[t.dataset.f] = t.dataset.f === 'name' ? t.value : num(t.value, t.dataset.f === 'rounds' ? 1 : 0);
+  else if (t.dataset.s) {
+    const s = draft.steps[t.closest('.step').dataset.i], k = t.dataset.s;
+    s[k] = k === 'name' ? t.value : num(t.value);
+  }
+  const est = $('#est'); if (est) est.textContent = fmtDur(estimate(draft));
+});
+$('#edit').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const card = b.closest('.step'), i = card ? +card.dataset.i : -1, st = draft.steps;
+  switch (b.dataset.act) {
+    case 'cancel': renderList(); show('list'); return;
+    case 'save': {
+      if (!st.length) { alert('Add at least one exercise.'); return; }
+      if (st.some(s => !s.secs && !s.reps)) { alert('Each exercise needs a time, a rep count, or both.'); return; }
+      const w = JSON.parse(JSON.stringify(draft)); const isNew = w._new; delete w._new;
+      w.rounds = Math.max(1, w.rounds);
+      if (isNew) workouts.push(w); else workouts[workouts.findIndex(x => x.id === w.id)] = w;
+      save(); renderList(); show('list'); return;
+    }
+    case 'del':
+      if (confirm('Delete "' + draft.name + '"?')) { workouts = workouts.filter(x => x.id !== draft.id); save(); renderList(); show('list'); }
+      return;
+    case 'add': st.push({ name: '', secs: 30, reps: 0, rest: 15 }); break;
+    case 'rm': st.splice(i, 1); break;
+    case 'up': if (i > 0) [st[i - 1], st[i]] = [st[i], st[i - 1]]; break;
+    case 'down': if (i < st.length - 1) [st[i + 1], st[i]] = [st[i], st[i + 1]]; break;
+  }
+  renderEdit();
+});
+
+/* ---------- get a workout from Claude ---------- */
+const FORMAT_URL = new URL('format.md', location.href).href;
+function claudePrompt(min, focus) {
+  return `Make me a ${min}-minute workout routine${focus ? ' — ' + focus : ''}.
+
+I'll load it into a timer app. After a one-line summary, give the workout as a single JSON code block in exactly this format:
+
+{"name": "Short title", "rounds": 2, "prep": 10, "roundRest": 45,
+ "steps": [
+  {"name": "Jumping jacks", "secs": 40, "reps": 0, "rest": 15},
+  {"name": "Push-ups", "secs": 45, "reps": 12, "rest": 15},
+  {"name": "Sit-ups", "secs": 0, "reps": 20, "rest": 15}
+ ]}
+
+Rules:
+- secs = seconds of work with a countdown (0 = untimed; I tap Done when finished).
+- reps = target reps for a tap counter (0 = no counter). A step can have both.
+- rest = seconds of rest after that step.
+- The steps list repeats "rounds" times. roundRest replaces the last step's rest between rounds. There is no rest after the final step.
+- Count untimed rep steps as about 3 seconds per rep.
+- Total time, including prep and rests, must come to about ${min} minutes.
+- Exercise names are read aloud, so use plain words.`;
+}
+function renderPaste() {
+  $('#paste').innerHTML = `
+  <header><button class="ghost" data-act="back">Back</button><h1>Workout from Claude</h1></header>
+  <div class="card">
+    <b>1. Ask Claude</b>
+    <div class="row3" style="grid-template-columns:1fr 3fr">
+      <label>Minutes<input id="pMin" type="number" inputmode="numeric" min="1" value="15"></label>
+      <label>What kind? (optional)<input id="pFocus" placeholder="e.g. full body, no equipment, easy on knees"></label>
+    </div>
+    <button class="primary wide" data-act="copy">Copy request for Claude</button>
+    <p class="hint">Paste it into Claude and send. The request already explains the format the app needs.<br>
+    Or give Claude this link to the format: <span style="-webkit-user-select:text;user-select:text">${esc(FORMAT_URL)}</span>
+    <br><button class="ghost" data-act="guide" style="margin-top:8px">Download format guide</button></p>
+    <p id="pCopyMsg" class="hint"></p>
+  </div>
+  <div class="card">
+    <b>2. Paste Claude's reply</b>
+    <textarea id="pText" placeholder="Paste Claude's whole reply here. The app finds the workout inside it."></textarea>
+    <button class="primary wide" data-act="add">Add workout</button>
+    <p id="pMsg" class="hint"></p>
+  </div>`;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch (e) {}
+  const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove(); return ok;
+}
+function extractWorkouts(text) {
+  const tries = [];
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i); if (fence) tries.push(fence[1]);
+  const a = text.indexOf('{'), b = text.lastIndexOf('}'); if (a >= 0 && b > a) tries.push(text.slice(a, b + 1));
+  const c = text.indexOf('['), d = text.lastIndexOf(']'); if (c >= 0 && d > c) tries.push(text.slice(c, d + 1));
+  for (const t of tries) {
+    try {
+      const data = JSON.parse(t);
+      const list = Array.isArray(data) ? data : Array.isArray(data.workouts) ? data.workouts : [data];
+      const good = list.filter(w => w && Array.isArray(w.steps) && w.steps.length).map(cleanWorkout);
+      if (good.length) return good;
+    } catch (e) {}
+  }
+  throw new Error("Couldn't find a workout in that text. Make sure the whole reply was pasted, including the code block.");
+}
+$('#paste').addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  switch (b.dataset.act) {
+    case 'back': renderList(); show('list'); break;
+    case 'copy': {
+      const ok = await copyText(claudePrompt(num($('#pMin').value, 1) || 15, $('#pFocus').value.trim()));
+      $('#pCopyMsg').textContent = ok ? 'Copied. Now open Claude and paste it.' : 'Copying was blocked. Use Download format guide instead.';
+      break;
+    }
+    case 'guide': {
+      try { const r = await fetch('format.md'); if (!r.ok) throw 0; download('workout-format.md', await r.text(), 'text/markdown'); }
+      catch (err) { download('workout-format.txt', claudePrompt(15, ''), 'text/plain'); }
+      break;
+    }
+    case 'add': {
+      try {
+        const list = extractWorkouts($('#pText').value);
+        workouts = workouts.concat(list); save(); renderList(); show('list');
+      } catch (err) { $('#pMsg').textContent = err.message; }
+      break;
+    }
+  }
+});
+
+/* ---------- files ---------- */
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+$('#importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const clean = extractWorkouts(await f.text());
+    const replace = confirm('Import ' + clean.length + ' workout(s).\n\nOK = replace current list\nCancel = add to current list');
+    workouts = replace ? clean : workouts.concat(clean);
+    save(); renderList();
+  } catch (err) { alert('Could not import: ' + err.message); }
+});
+
+/* ---------- sound, voice, wake lock ---------- */
+let actx = null;
+function unlockAudio() {
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
+  if (opts.voice && 'speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+}
+function beep(freq = 880, dur = 0.15) {
+  if (!opts.beep || !actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+  o.frequency.value = freq; o.type = 'sine';
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function say(text) {
+  if (!opts.voice || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; speechSynthesis.speak(u);
+}
+let wakeLock = null;
+async function lockScreen() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function releaseScreen() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && run && !run.finished) { lockScreen(); tick(); } });
+
+/* ---------- runner ---------- */
+let run = null, timer = null;
+const R = { root: $('#run'), label: $('#rLabel'), main: $('#rMain'), sub: $('#rSub'), round: $('#rRound'), total: $('#rTotal'), bar: $('#rBar'), pause: $('#rPause') };
+const counting = p => p.reps > 0 && (p.kind === 'work' || p.kind === 'reps');
+
+function startRun(w) {
+  unlockAudio(); lockScreen();
+  run = { w, phases: buildPhases(w), idx: 0, paused: false, finished: false, elapsed: 0, last: Date.now() };
+  show('run'); startPhase(0, Date.now());
+  clearInterval(timer); timer = setInterval(tick, 100);
+}
+function nextWork(i) {
+  for (let j = i + 1; j < run.phases.length; j++) { const p = run.phases[j]; if (p.kind === 'work' || p.kind === 'reps') return p; }
+  return null;
+}
+function startPhase(i, base) {
+  const p = run.phases[i]; run.idx = i; run.count = 0; run.lastSec = null; run.paused = false; run.phaseStart = base;
+  if (p.secs) run.endAt = base + p.secs * 1000;
+  if (p.kind === 'work' || p.kind === 'reps') {
+    beep(1046, 0.35);
+    say(p.label + (p.reps ? ', ' + p.reps + ' reps' : '') + (p.secs ? ', ' + p.secs + ' seconds' : ''));
+  } else { const n = nextWork(i); beep(520, 0.3); say(p.label + (n ? '. Next, ' + n.label : '')); }
+  render();
+}
+function advance(base) {
+  if (run.idx + 1 >= run.phases.length) return finish();
+  startPhase(run.idx + 1, base ?? Date.now());
+}
+function finish() {
+  run.finished = true; clearInterval(timer); releaseScreen();
+  beep(1046, 0.2); setTimeout(() => beep(1318, 0.4), 220); say('Workout complete');
+  R.root.dataset.kind = 'done'; delete R.root.dataset.count; R.root.classList.remove('paused');
+  R.label.textContent = 'Done — ' + run.w.name;
+  R.main.textContent = fmt(run.elapsed / 1000);
+  R.sub.textContent = 'Total time'; R.round.textContent = ''; R.total.textContent = '';
+  R.bar.style.width = '100%'; R.pause.textContent = 'Back';
+}
+function tick() {
+  if (!run || run.finished) return;
+  const now = Date.now();
+  if (!run.paused) run.elapsed += now - run.last;
+  run.last = now;
+  if (run.paused) return;
+  let p = run.phases[run.idx];
+  // Timed phases chain off the scheduled end time, so a backgrounded/throttled page catches up exactly.
+  while (p.secs && now >= run.endAt) {
+    const end = run.endAt; advance(end);
+    if (run.finished) return;
+    p = run.phases[run.idx];
+  }
+  if (p.secs) {
+    const s = Math.ceil((run.endAt - now) / 1000);
+    if (s !== run.lastSec) { run.lastSec = s; if (s <= 3 && s > 0) beep(660, 0.12); }
+  }
+  render();
+}
+function render() {
+  const p = run.phases[run.idx], now = Date.now();
+  R.root.dataset.kind = p.kind;
+  if (counting(p)) R.root.dataset.count = '1'; else delete R.root.dataset.count;
+  R.root.classList.toggle('paused', run.paused);
+  R.label.textContent = p.label;
+  R.round.textContent = 'Round ' + p.round + ' / ' + run.w.rounds;
+  R.total.textContent = fmt(run.elapsed / 1000);
+  const timeTxt = p.secs ? fmt(Math.ceil((run.paused ? run.remaining : run.endAt - now) / 1000)) : fmt((now - run.phaseStart) / 1000);
+  if (counting(p)) {
+    R.main.innerHTML = p.secs
+      ? `<div>${timeTxt}</div><div class="cnt">${run.count} / ${p.reps} reps</div>`
+      : `<div>${run.count} / ${p.reps}</div>`;
+    R.sub.innerHTML = 'Tap to count' + (p.secs ? '' : ' · ' + timeTxt) + ' <button id="rMinus">−1</button>';
+  } else {
+    R.main.textContent = timeTxt;
+    const n = p.kind === 'work' ? null : nextWork(run.idx);
+    R.sub.textContent = n ? 'Next: ' + n.label + ' ' + stepDesc(n) : '';
+  }
+  R.pause.textContent = p.secs ? (run.paused ? 'Resume' : 'Pause') : (run.count >= p.reps ? 'Done ✓' : 'Done');
+  R.bar.style.width = (run.idx / run.phases.length * 100) + '%';
+}
+R.main.addEventListener('click', () => {
+  if (!run || run.finished || run.paused) return;
+  const p = run.phases[run.idx]; if (!counting(p)) return;
+  run.count++; beep(run.count === p.reps ? 1318 : 880, 0.08);
+  if (run.count === p.reps) say('Done');
+  render();
+});
+R.sub.addEventListener('click', e => {
+  if (e.target.id !== 'rMinus' || !run) return;
+  run.count = Math.max(0, run.count - 1); render();
+});
+R.pause.addEventListener('click', () => {
+  if (!run) return;
+  if (run.finished) { quit(); return; }
+  const p = run.phases[run.idx];
+  if (!p.secs) { advance(); return; }
+  if (run.paused) { run.endAt = Date.now() + run.remaining; run.paused = false; lockScreen(); }
+  else { run.remaining = run.endAt - Date.now(); run.paused = true; }
+  render();
+});
+$('#rNext').addEventListener('click', () => { if (run && !run.finished) advance(); });
+$('#rPrev').addEventListener('click', () => {
+  if (!run || run.finished) return;
+  // Within the first 2 s of a phase, go back one phase; otherwise restart this one.
+  const back = Date.now() - run.phaseStart < 2000 ? Math.max(0, run.idx - 1) : run.idx;
+  startPhase(back, Date.now());
+});
+$('#rQuit').addEventListener('click', () => { if (!run || run.finished || confirm('End this workout?')) quit(); });
+function quit() { clearInterval(timer); run = null; releaseScreen(); if ('speechSynthesis' in window) speechSynthesis.cancel(); renderList(); show('list'); }
+
+renderList();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+})();
+</script>
+</body>
+</html>
